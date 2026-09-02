@@ -63,6 +63,21 @@ export class OrchestratorClient {
     );
   }
 
+  public async resetConversation(): Promise<void> {
+    if (
+      this.connection.state !==
+      HubConnectionState.Connected
+    ) {
+      throw new Error(
+        "The orchestrator connection is not active.",
+      );
+    }
+
+    await this.connection.invoke<void>(
+      "ResetConversation",
+    );
+  }
+  
   public async disconnect(): Promise<void> {
     if (
       this.connection.state !==

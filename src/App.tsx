@@ -291,14 +291,37 @@ function App() {
     }
   }
 
-  const startNewSession = () => {
-    if (running) return
-    setMessages(initialMessages)
-    setEvents([])
-    setCurrentRunId(null)
-    setLastRunDuration(null)
-    setError(null)
-    setPrompt("")
+  const startNewSession = async (): Promise<void> => {
+    if (running || !clientRef.current) {
+      return;
+    }
+
+    if (!connected) {
+      setError(
+        "The application is not connected to the orchestrator.",
+      );
+
+      return;
+    }
+
+    try {
+      setError(null);
+
+      await clientRef.current.resetConversation();
+
+      setMessages(initialMessages);
+      setEvents([]);
+      setCurrentRunId(null);
+      setLastRunDuration(null);
+      setPrompt("");
+    } catch (resetError: unknown) {
+      const message =
+        resetError instanceof Error
+          ? resetError.message
+          : "The conversation could not be reset.";
+
+      setError(message);
+    }
   }
 
   return (
