@@ -24,6 +24,7 @@ import {
 
 import { OrchestratorClient } from "./api/orchestratorClient"
 import type { AgentRunEvent, ChatMessage } from "./models/agentModels"
+import { LabelCandidatesPanel } from "./components/LabelCandidatesPanel"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -70,6 +71,12 @@ function getEventDisplayName(event: AgentRunEvent): string {
       return "Orchestrator synthesized response"
     case "RunCompleted":
       return "Run completed"
+    case "GenerationStarted":
+      return "Label generation started"
+    case "LabelCandidateGenerated":
+      return `${event.component} generated`
+    case "GenerationCompleted":
+      return "Label generation completed"
     case "RunFailed":
       return "Run failed"
     default:
@@ -82,6 +89,7 @@ function getEventIcon(event: AgentRunEvent) {
   if (event.status.toLowerCase() === "failed") return XCircle
   if (component.includes("product")) return Database
   if (component.includes("regulatory")) return ShieldCheck
+  if (component.includes("generation") || component.includes("candidate")) return Sparkles
   if (event.eventType.includes("Orchestrator")) return Workflow
   if (event.eventType === "RunCompleted") return Sparkles
   return Activity
@@ -92,6 +100,7 @@ function getEventTheme(event: AgentRunEvent): string {
   if (event.status.toLowerCase() === "failed") return "bg-red-50 text-red-700 ring-red-200"
   if (component.includes("product")) return "bg-cyan-50 text-cyan-700 ring-cyan-200"
   if (component.includes("regulatory")) return "bg-amber-50 text-amber-700 ring-amber-200"
+  if (component.includes("generation") || component.includes("candidate")) return "bg-violet-50 text-violet-700 ring-violet-200"
   if (event.eventType.includes("Orchestrator")) return "bg-indigo-50 text-indigo-700 ring-indigo-200"
   return "bg-violet-50 text-violet-700 ring-violet-200"
 }
@@ -335,7 +344,7 @@ function App() {
             <div>
               <h1 className="text-lg font-bold tracking-tight">Label Platform Agent Console</h1>
               <p className="text-xs text-slate-500">
-                Product intelligence and regulatory orchestration
+                Product intelligence, regulatory orchestration, and label generation
               </p>
             </div>
           </div>
@@ -387,7 +396,7 @@ function App() {
                     Conversation
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    Ask product-specific or regulatory questions
+                    Ask product, regulatory, or label-generation questions
                   </CardDescription>
                 </div>
                 {currentRunId && (
@@ -458,7 +467,7 @@ function App() {
                         void runPrompt()
                       }
                     }}
-                    placeholder="Ask about a product or regulatory requirement..."
+                    placeholder="Ask about a product, regulatory requirement, or generate label candidates..."
                     disabled={running}
                     className="min-h-[88px] resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
                   />
@@ -487,9 +496,12 @@ function App() {
           <Card className="min-h-[calc(100vh-118px)] overflow-hidden rounded-3xl border-slate-200 shadow-sm">
             <Tabs defaultValue="trace" className="h-full">
               <div className="border-b border-slate-100 px-5 pt-4">
-                <TabsList className="grid w-full grid-cols-2 rounded-xl bg-slate-100">
+                <TabsList className="grid w-full grid-cols-3 rounded-xl bg-slate-100">
                   <TabsTrigger value="trace" className="rounded-lg">
                     Execution trace
+                  </TabsTrigger>
+                  <TabsTrigger value="candidates" className="rounded-lg">
+                    Label candidates
                   </TabsTrigger>
                   <TabsTrigger value="metrics" className="rounded-lg">
                     Run metrics
@@ -541,6 +553,16 @@ function App() {
                     </div>
                   )}
                 </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="candidates" className="m-0 p-5">
+                <div className="mb-5">
+                  <h2 className="font-semibold">Generated alternatives</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Phase 2 candidates are not yet scored or ranked
+                  </p>
+                </div>
+                <LabelCandidatesPanel events={events} />
               </TabsContent>
 
               <TabsContent value="metrics" className="m-0 p-5">
