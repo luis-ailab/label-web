@@ -26,6 +26,7 @@ import { OrchestratorClient } from "./api/orchestratorClient"
 import type { AgentRunEvent, ChatMessage } from "./models/agentModels"
 import { LabelCandidatesPanel } from "./components/LabelCandidatesPanel"
 import { CandidateEvaluationPanel } from "./components/CandidateEvaluationPanel"
+import { SearchTreePanel } from "./components/SearchTreePanel"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -84,6 +85,14 @@ function getEventDisplayName(event: AgentRunEvent): string {
       return `${event.component} evaluated`
     case "EvaluationCompleted":
       return "Candidate evaluation completed"
+    case "BeamSearchStarted":
+      return "Beam search started"
+    case "SearchNodeUpdated":
+      return `${event.component} updated`
+    case "BeamSearchCompleted":
+      return "Beam search completed"
+    case "WinnerSelected":
+      return "Winner selected for human review"
     case "RunFailed":
       return "Run failed"
     default:
@@ -199,6 +208,7 @@ function TraceRow({ event }: { event: AgentRunEvent }) {
 function App() {
   const clientRef = useRef<OrchestratorClient | null>(null)
   const messageEndRef = useRef<HTMLDivElement | null>(null)
+  const traceEndRef = useRef<HTMLDivElement | null>(null)
 
   const [prompt, setPrompt] = useState(
     "For SKU 12345, what compliant structure/function claims could be considered based on its formulation?",
@@ -246,6 +256,12 @@ function App() {
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, running])
+  useEffect(() => {
+    traceEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    })
+  }, [events, running])
 
   const specialistAgentCalls = useMemo(
     () => events.filter((event) => event.eventType === "AgentStarted").length,
@@ -343,8 +359,8 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
+    <div className="flex h-screen flex-col overflow-hidden bg-[#f5f7fb] text-slate-900">
+      <header className="z-20 shrink-0 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 text-white shadow-lg shadow-indigo-200">
@@ -386,17 +402,17 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1500px] p-4 sm:p-5">
+      <main className="mx-auto flex min-h-0 w-full max-w-[1500px] flex-1 flex-col overflow-hidden p-4 sm:p-5">
         {error && (
-          <Alert variant="destructive" className="mb-5 rounded-2xl bg-white">
+          <Alert variant="destructive" className="mb-5 shrink-0 rounded-2xl bg-white">
             <CircleAlert className="h-4 w-4" />
             <AlertTitle>Request error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.12fr)_minmax(400px,.88fr)]">
-          <Card className="flex min-h-[calc(100vh-118px)] flex-col overflow-hidden rounded-3xl border-slate-200 shadow-sm">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.12fr)_minmax(400px,.88fr)]">
+          <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border-slate-200 shadow-sm">
             <CardHeader className="border-b border-slate-100 px-6 py-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -416,8 +432,8 @@ function App() {
               </div>
             </CardHeader>
 
-            <CardContent className="flex flex-1 flex-col p-0">
-              <ScrollArea className="h-[calc(100vh-345px)] min-h-[400px] flex-1">
+            <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+              <ScrollArea className="min-h-0 flex-1">
                 <div className="space-y-6 p-6">
                   {messages.map((message, index) => (
                     <div
@@ -465,7 +481,7 @@ function App() {
                 </div>
               </ScrollArea>
 
-              <div className="border-t border-slate-100 bg-white p-5">
+              <div className="shrink-0 border-t border-slate-100 bg-white p-5">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-2 transition focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-50">
                   <Textarea
                     value={prompt}
@@ -502,10 +518,10 @@ function App() {
             </CardContent>
           </Card>
 
-          <Card className="min-h-[calc(100vh-118px)] overflow-hidden rounded-3xl border-slate-200 shadow-sm">
-            <Tabs defaultValue="trace" className="h-full">
-              <div className="border-b border-slate-100 px-5 pt-4">
-                <TabsList className="grid w-full grid-cols-4 rounded-xl bg-slate-100">
+          <Card className="h-full min-h-0 overflow-hidden rounded-3xl border-slate-200 shadow-sm">
+            <Tabs defaultValue="trace" className="flex h-full min-h-0 flex-col">
+              <div className="shrink-0 border-b border-slate-100 px-5 pt-4">
+                <TabsList className="grid w-full grid-cols-5 rounded-xl bg-slate-100">
                   <TabsTrigger value="trace" className="rounded-lg">
                     Execution trace
                   </TabsTrigger>
@@ -515,13 +531,16 @@ function App() {
                   <TabsTrigger value="evaluation" className="rounded-lg">
                     Evaluation
                   </TabsTrigger>
+                  <TabsTrigger value="search" className="rounded-lg">
+                    Search tree
+                  </TabsTrigger>
                   <TabsTrigger value="metrics" className="rounded-lg">
                     Run metrics
                   </TabsTrigger>
                 </TabsList>
               </div>
 
-              <TabsContent value="trace" className="m-0 p-5">
+              <TabsContent value="trace" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden p-5">
                 <div className="mb-5 flex items-center justify-between">
                   <div>
                     <h2 className="font-semibold">Agent activity</h2>
@@ -536,7 +555,7 @@ function App() {
                   )}
                 </div>
 
-                <ScrollArea className="h-[calc(100vh-230px)] min-h-[500px] pr-3">
+                <ScrollArea className="min-h-0 flex-1 pr-3">
                   {events.length === 0 && !running ? (
                     <div className="flex min-h-[430px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
                       <div className="rounded-2xl bg-white p-4 shadow-sm">
@@ -562,12 +581,13 @@ function App() {
                           <Progress value={62} className="mt-3 h-1.5" />
                         </div>
                       )}
+                      <div ref={traceEndRef} />
                     </div>
                   )}
                 </ScrollArea>
               </TabsContent>
 
-              <TabsContent value="candidates" className="m-0 p-5">
+              <TabsContent value="candidates" className="m-0 min-h-0 flex-1 overflow-hidden p-5">
                 <div className="mb-5">
                   <h2 className="font-semibold">Generated alternatives</h2>
                   <p className="mt-0.5 text-xs text-slate-500">
@@ -577,7 +597,7 @@ function App() {
                 <LabelCandidatesPanel events={events} />
               </TabsContent>
 
-              <TabsContent value="evaluation" className="m-0 p-5">
+              <TabsContent value="evaluation" className="m-0 min-h-0 flex-1 overflow-hidden p-5">
                 <div className="mb-5">
                   <h2 className="font-semibold">Candidate evaluation</h2>
                   <p className="mt-0.5 text-xs text-slate-500">
@@ -587,7 +607,15 @@ function App() {
                 <CandidateEvaluationPanel events={events} />
               </TabsContent>
 
-              <TabsContent value="metrics" className="m-0 p-5">
+              <TabsContent value="search" className="m-0 min-h-0 flex-1 overflow-hidden p-5">
+                <div className="mb-5">
+                  <h2 className="font-semibold">Tree of Thoughts and Beam Search</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Retained, pruned, expanded, and winning branches</p>
+                </div>
+                <SearchTreePanel events={events} />
+              </TabsContent>
+
+              <TabsContent value="metrics" className="m-0 min-h-0 flex-1 overflow-hidden p-5">
                 <div className="grid grid-cols-2 gap-3">
                   <MetricCard icon={Timer} color="text-indigo-600" value={running ? "Running" : formatDuration(lastRunDuration)} label="Total duration" />
                   <MetricCard icon={Bot} color="text-cyan-600" value={specialistAgentCalls.toString()} label="Specialist calls" />
